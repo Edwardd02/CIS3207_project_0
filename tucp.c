@@ -1,17 +1,18 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <fcntl.h> // For open()
-#include <unistd.h> // For close()
+#include <fcntl.h>
+#include <unistd.h>
 #include <sys/types.h>
 #include <sys/stat.h>
-#include <dirent.h> // For opendir(), readdir()
+#include <dirent.h>
 
 #define BUF_SIZE 4096
 
 void copy_file(const char* src, const char* dst) {
     int src_fd, dst_fd, n, err;
     unsigned char buffer[BUF_SIZE];
+
     src_fd = open(src, O_RDONLY);
     if (src_fd < 0) {
         perror("tucp: cannot open source file");
@@ -20,7 +21,7 @@ void copy_file(const char* src, const char* dst) {
 
     dst_fd = open(dst, O_WRONLY | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR);
     if (dst_fd < 0) {
-        perror("tucp: cannot open destination file");
+        perror("tucp: cannot open/create destination file");
         close(src_fd);
         exit(1);
     }
@@ -58,9 +59,15 @@ int main(int argc, char *argv[]) {
 
     const char* dest = argv[argc - 1];
     struct stat st;
+
     if (stat(dest, &st) < 0) {
-        perror("tucp: stat failed");
-        exit(1);
+        if (argc == 3) { // Attempt to copy file if only source and destination are provided
+            copy_file(argv[1], argv[2]);
+            return 0;
+        } else {
+            fprintf(stderr, "tucp: destination does not exist\n");
+            exit(EXIT_FAILURE);
+        }
     }
 
     if (S_ISDIR(st.st_mode)) {
