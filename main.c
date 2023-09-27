@@ -31,11 +31,23 @@ void printDir(const char *path, int recursive) {
 
         char subPath[4096];
         snprintf(subPath, sizeof(subPath), "%s/%s", path, entry->d_name);
+        int count = 0;
+        for(int n = 0; n < strlen(subPath); n++)
+        {
+            if(subPath[n] == '/')
+            {
+                count++;
+            }
+        }
+        for(int j = 1; j < count; j++)
+        {
+            printf("-");
+        }
 
-        printf("%s\n", recursive ? subPath : entry->d_name);
+        printf("%s\n", entry->d_name);
 
         if (recursive && entry->d_type == DT_DIR) {
-            printDir(subPath, 1);
+            printDir(   subPath, 1);
         }
 
         free(namelist[i]);
