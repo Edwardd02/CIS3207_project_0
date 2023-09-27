@@ -1,31 +1,53 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <errno.h>
+#include <fcntl.h> // For open()
+#include <unistd.h> // For close()
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <dirent.h> // For opendir(), readdir()
 
-// Function to copy file
-void copyFile(const char *sourcePath, const char *destPath) {
-    FILE *sourceFile, *destFile;
-    char ch;
+#define BUF_SIZE 4096
 
-    sourceFile = fopen(sourcePath, "r");
-    if (sourceFile == NULL) {
+void copy_file(const char* src, const char* dst) {
+    int src_fd, dst_fd, n, err;
+    unsigned char buffer[BUF_SIZE];
+    src_fd = open(src, O_RDONLY);
+    if (src_fd < 0) {
         perror("tucp: cannot open source file");
-        exit(EXIT_FAILURE);
+        exit(1);
     }
 
-    destFile = fopen(destPath, "w");
-    if (destFile == NULL) {
+    dst_fd = open(dst, O_WRONLY | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR);
+    if (dst_fd < 0) {
         perror("tucp: cannot open destination file");
-        fclose(sourceFile);
-        exit(EXIT_FAILURE);
+        close(src_fd);
+        exit(1);
     }
 
-    while ((ch = fgetc(sourceFile)) != EOF)
-        fputc(ch, destFile);
+    while (1) {
+        err = read(src_fd, buffer, BUF_SIZE);
+        if (err == -1) {
+            perror("tucp: read failed");
+            close(src_fd);
+            close(dst_fd);
+            exit(1);
+        }
+        n = err;
 
-    fclose(sourceFile);
-    fclose(destFile);
+        if (n == 0) break;
+
+        err = write(dst_fd, buffer, n);
+        if (err == -1) {
+            perror("tucp: write failed");
+            close(src_fd);
+            close(dst_fd);
+            exit(1);
+        }
+    }
+
+    close(src_fd);
+    close(dst_fd);
 }
 
 int main(int argc, char *argv[]) {
@@ -34,16 +56,25 @@ int main(int argc, char *argv[]) {
         exit(EXIT_FAILURE);
     }
 
-    if (argc == 3) {
-        // tucp Sourcefile Destinationfile or tucp Sourcefile Directory
-        copyFile(argv[1], argv[2]);
-    } else {
-        // tucp Sourcefile-1 Sourcefile-2 Sourcefile-3 Sourcefile-n Directory
-        for (int i = 1; i < argc - 1; i++) {
-            char destPath[4096];
-            snprintf(destPath, sizeof(destPath), "%s/%s", argv[argc - 1], strrchr(argv[i], '/') + 1);
-            copyFile(argv[i], destPath);
+    const char* dest = argv[argc - 1];
+    struct stat st;
+    if (stat(dest, &st) < 0) {
+        perror("tucp: stat failed");
+        exit(1);
+    }
+
+    if (S_ISDIR(st.st_mode)) {
+        for (int i = 1; i < argc - 1; ++i) {
+            char path[PATH_MAX];
+            snprintf(path, PATH_MAX, "%s/%s", dest, argv[i]);
+            copy_file(argv[i], path);
         }
+    } else {
+        if (argc > 3) {
+            fprintf(stderr, "tucp: extra operand '%s'\n", argv[3]);
+            exit(EXIT_FAILURE);
+        }
+        copy_file(argv[1], argv[2]);
     }
 
     return 0;
