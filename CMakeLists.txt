@@ -3,4 +3,4 @@ project(project_0 C)
 
 set(CMAKE_C_STANDARD 11)
 
-add_executable(project_0 main.c)
+add_executable(project_0 tuls.c)
